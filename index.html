@@ -1,0 +1,1030 @@
+import React, { useState, useEffect } from 'react';
+
+// ==========================================
+// 1. 題型定義與資料庫 (ICOPE 72題完整題庫 - 12宮格版)
+// ==========================================
+const Q_TYPES = {
+  TF: '是非題',
+  MCQ: '選擇題',
+  RIDDLE: '猜謎題',
+  MULTI: '多重選擇題',
+  FILL: '填空題',
+  DESIGN: '設計題',
+  DISCUSS: '討論題',
+  ERROR: '找錯題',
+  MATCH: '配對題',
+  DIALOGUE: '情境對話題',
+  TABLE: '查表題',
+  ORDER: '排序題'
+};
+
+const THEMES = [
+  { id: 'locomotor', name: '行動力', icon: '🏃', color: 'bg-blue-500', bgColor: 'bg-blue-50' },
+  { id: 'cognitive', name: '認知力', icon: '🧠', color: 'bg-purple-500', bgColor: 'bg-purple-50' },
+  { id: 'vitality', name: '營養力', icon: '🍎', color: 'bg-green-500', bgColor: 'bg-green-50' },
+  { id: 'psychological', name: '憂鬱力', icon: '😊', color: 'bg-yellow-500', bgColor: 'bg-yellow-50' },
+  { id: 'hearing', name: '聽力', icon: '👂', color: 'bg-teal-500', bgColor: 'bg-teal-50' },
+  { id: 'vision', name: '視力', icon: '👁️', color: 'bg-orange-500', bgColor: 'bg-orange-50' }
+];
+
+const QUESTIONS = {
+  locomotor: [
+    { type: 'TF', question: '每天只要去公園散步走路，就足以維持長者的肌肉量，不需要做其他運動。', options: ['O', 'X'], answer: 'X', knowledge: '【衛教知識】散步屬有氧運動，對心肺好，但「無法」有效增加肌肉量。長者必須加入「阻力訓練」（如深蹲、舉水瓶）才能預防肌少症！' },
+    { type: 'MCQ', question: '下列哪種運動最能有效「預防跌倒」？', options: ['游泳', '太極拳', '騎腳踏車', '下象棋'], answer: '太極拳', knowledge: '【衛教知識】太極拳包含重心轉移與下肢肌力訓練，是實證醫學公認最能有效增進長者「平衡感」並預防跌倒的運動。' },
+    { type: 'RIDDLE', question: '兩根柱子撐起家，老來無力容易塌，若要穩固防跌倒，阻力訓練不可少。（猜身體部位/組織）', answer: '肌肉', answerKeywords: ['肌肉', '雙腿', '腿', '腳'], knowledge: '【衛教知識】人過40歲後肌肉量會以每十年8%速度流失。把雙腿肌肉練強壯，就像幫房子打好地基，是防跌根本。' },
+    { type: 'MULTI', question: '預防肌少症，日常飲食應該多攝取哪些營養素？(可複選)', options: ['蛋白質', '維生素D', '鈣質', '反式脂肪'], answer: ['蛋白質', '維生素D', '鈣質'], knowledge: '【衛教知識】蛋白質是長肌肉的原料，維生素D幫助肌肉功能與鈣質吸收。反式脂肪反而會增加心血管風險，應盡量避免。' },
+    { type: 'FILL', question: '國民健康署建議，長者每週應進行至少 _____ 分鐘的中等費力身體活動。', answer: '150', answerKeywords: ['150', '一百五十'], knowledge: '【衛教知識】每週150分鐘（可分5天，每天30分鐘）的中等費力運動（會有點喘但還能講話的程度），能維持基本行動力與心肺健康。' },
+    { type: 'DESIGN', question: '請為行動不便、需坐輪椅的長輩，設計一個「坐在椅子上」就能做的下肢肌力訓練動作。', answer: '開放題', knowledge: '【衛教知識】優秀的設計！例如「坐姿抬腿」：坐在椅子上，將單腳膝蓋伸直抬起，腳尖朝上停留3-5秒再放下，雙腳輪流。這能有效訓練大腿前側的股四頭肌。' },
+    { type: 'DISCUSS', question: '如果發現長輩最近走路越來越慢，甚至過馬路時綠燈常走不完，你會如何引導他？', answer: '開放題', knowledge: '【衛教知識】走路變慢是行動力衰退的重要警訊！應以關心代替指責，陪伴就醫評估骨關節或神經問題，並開始循序漸進的肌力與平衡訓練。' },
+    { 
+      type: 'ERROR', 
+      question: '找錯：王奶奶為了膝蓋好，每天做50個深蹲，就算膝蓋痛也堅持做完，且每次深蹲都憋氣用力，覺得這樣最有效。', 
+      answer: '開放題', 
+      knowledge: '【衛教知識】錯誤有二：1.「膝蓋痛堅持做」會造成關節進一步磨損，痛應停止並就醫。2.「憋氣用力」會導致血壓驟升（伐氏效應），非常危險，運動時保持自然呼吸最重要。',
+      correctionData: [
+        { text: '王奶奶為了膝蓋好，每天做50個深蹲，' },
+        { text: '就算膝蓋痛也堅持做完', isError: true, correction: '膝蓋痛應立刻停止並就醫' },
+        { text: '，且每次深蹲都' },
+        { text: '憋氣用力', isError: true, correction: '保持自然呼吸' },
+        { text: '，覺得這樣最有效。' }
+      ]
+    },
+    { type: 'MATCH', question: '配對運動類型與其主要好處：', pairs: { '阻力訓練': '增加肌肉量', '有氧運動': '增強心肺功能', '平衡訓練': '預防跌倒' }, options: ['增加肌肉量', '增強心肺功能', '預防跌倒'], knowledge: '【衛教知識】完美的運動處方應該包含這三者：有氧顧心臟、阻力長肌肉、平衡防跌倒，缺一不可！' },
+    { 
+      type: 'DIALOGUE', 
+      question: '請選擇最合適的回應方式：', 
+      dialogue: {
+        speaker: '王奶奶',
+        text: '我為了加強運動效果，每天去爬山爬一整天，覺得爬山是最好的運動，就算膝蓋喀喀作響我也繼續爬！'
+      },
+      options: [
+        '奶奶好有毅力！繼續保持，多爬膝蓋就會習慣了。',
+        '爬山很傷膝蓋喔，如果膝蓋會痛，我們改去平地健走或水中走路好嗎？',
+        '爬山太累了，奶奶您以後整天在家坐著休息就好。'
+      ],
+      answer: '爬山很傷膝蓋喔，如果膝蓋會痛，我們改去平地健走或水中走路好嗎？',
+      knowledge: '【衛教知識】爬樓梯/爬山對膝蓋的壓力是平地的3-4倍。若已有退化性關節炎，不建議將爬山作為主力運動，應改為平地健走或水中走路。'
+    },
+    {
+      type: 'TABLE',
+      question: '根據下方的「RPE 運動自覺量表」，國民健康署建議長輩的運動強度應該要達到哪一個區間最合適？',
+      tableData: {
+        headers: ['分數', '感覺程度', '身體狀況'],
+        rows: [
+          ['1-2分', '很輕鬆', '沒有感覺，可大聲唱歌'],
+          ['3-4分', '中等費力', '有點喘，但還能順暢講話'],
+          ['5-6分', '有點吃力', '很喘，講話會斷斷續續'],
+          ['7-10分', '非常吃力', '喘不過氣，完全無法講話']
+        ]
+      },
+      options: ['1-2分 (很輕鬆)', '3-4分 (中等費力)', '7-10分 (非常吃力)'],
+      answer: '3-4分 (中等費力)',
+      knowledge: '【衛教知識】運動要有效果，強度必須達標！建議長者運動應維持在「有點喘但還能講話」的中等費力程度（RPE 3-4分），最安全且有效。'
+    },
+    {
+      type: 'ORDER',
+      question: '如果長輩不小心跌倒了，但意識清醒且沒有嚴重骨折，請排列出「自己安全爬起」的正確4個步驟：',
+      options: ['翻轉側臥，稍作休息', '扶著穩固的家具或椅子', '用手和未受傷的膝蓋撐地', '慢慢轉身坐上椅子'],
+      answer: ['翻轉側臥，稍作休息', '用手和未受傷的膝蓋撐地', '扶著穩固的家具或椅子', '慢慢轉身坐上椅子'],
+      knowledge: '【衛教知識】跌倒千萬別急著馬上站起來！容易因姿態性低血壓或重心不穩引發二次跌倒。先確認傷勢，翻身側趴，利用雙手與好腳爬向穩固椅子再慢慢起身。'
+    }
+  ],
+  cognitive: [
+    { type: 'TF', question: '「老番顛」和記憶力變差是正常老化的必然過程，沒辦法預防或治療。', options: ['O', 'X'], answer: 'X', knowledge: '【衛教知識】失智症是「大腦疾病」而非正常老化！及早發現、多動腦、多社交、控制三高，都能延緩認知功能退化。' },
+    { type: 'MCQ', question: '預防認知功能衰退，以下何者最有效？', options: ['每天看電視', '學習新語言或樂器', '減少出門社交', '每天睡超過12小時'], answer: '學習新語言或樂器', knowledge: '【衛教知識】看電視是單向接收，對大腦刺激不夠。「學習新事物」能建立大腦新的神經連結，增加「腦本」，對抗失智最有效。' },
+    { type: 'RIDDLE', question: '腦中如有橡皮擦，往事漸漸變成沙，及早動腦多交友，不怕忘記回家的路。（猜一疾病）', answer: '失智症', answerKeywords: ['失智', '阿茲海默', '痴呆'], knowledge: '【衛教知識】失智症不僅是忘記事情，還會伴隨個性改變、迷路、無法處理日常事務。早期篩檢（如AD8量表）非常重要。' },
+    { type: 'MULTI', question: '國際公認的「麥得飲食(MIND)」能防失智，其特色包含？(可複選)', options: ['多吃綠色蔬菜', '多吃莓果類', '大量攝取紅肉', '使用橄欖油'], answer: ['多吃綠色蔬菜', '多吃莓果類', '使用橄欖油'], knowledge: '【衛教知識】麥得飲食結合地中海與得舒飲食，強調深綠色蔬菜、堅果、莓果（抗氧化）與好油，並建議限制紅肉與奶油的攝取。' },
+    { type: 'FILL', question: '若發現長輩有記憶力異常減退，應盡早帶長輩前往醫院的「____」科就診評估。', answer: '神經內科', answerKeywords: ['神經內', '神經', '精神', '記憶'], knowledge: '【衛教知識】神經內科或精神科（老年精神科）能進行專業的認知功能測驗與腦部影像檢查，找出失智原因並對症下藥。' },
+    { type: 'DESIGN', question: '請利用家中常見的物品（如撲克牌、月曆、照片），設計一個能訓練長輩記憶力的小遊戲。', answer: '開放題', knowledge: '【衛教知識】好點子！例如「照片回憶錄」：拿出老照片請長輩說出人事時地物；或用撲克牌玩簡單的「配對翻牌」遊戲，都能活化大腦。' },
+    { type: 'DISCUSS', question: '面對一直重複問相同問題（例如：我們什麼時候吃飯？）的失智長輩，你會如何回應？', answer: '開放題', knowledge: '【衛教知識】千萬不要說「你剛剛問過了」！這會引發長輩挫折與憤怒。請保持耐心，用溫和語氣簡短回答，或轉移注意力（例如：我們先來喝杯水/看電視）。' },
+    { 
+      type: 'ERROR', 
+      question: '找錯：李爺爺常忘記吃藥，家人覺得他只是老了記性差，所以只要幫他把藥放桌上就好，偶爾忘記吃一天也沒關係。', 
+      answer: '開放題', 
+      knowledge: '【衛教知識】錯誤有三：1.忽視認知衰退警訊。2.藥放桌上長輩仍會忘記或吃錯，應使用藥盒或親自監督。3.慢性病藥不可隨意停藥，會引發危險。',
+      correctionData: [
+        { text: '李爺爺常忘記吃藥，家人覺得他只是老了記性差，所以' },
+        { text: '只要幫他把藥放桌上就好', isError: true, correction: '應使用藥盒或親自監督' },
+        { text: '，' },
+        { text: '偶爾忘記吃一天也沒關係', isError: true, correction: '慢性病藥不可隨意停藥' },
+        { text: '。' }
+      ]
+    },
+    { type: 'MATCH', question: '配對認知訓練方法與主要訓練的能力：', pairs: { '玩數獨/桌遊': '邏輯思考與計算', '寫日記/聊天': '語言與表達', '認路/畫地圖': '空間定向感' }, options: ['邏輯思考與計算', '語言與表達', '空間定向感'], knowledge: '【衛教知識】大腦有不同區域負責不同功能，多元的認知活動（算數、語言、空間、藝術）才能達到全腦訓練的效果。' },
+    { 
+      type: 'DIALOGUE', 
+      question: '請選擇最合適的回應方式：', 
+      dialogue: {
+        speaker: '王伯伯',
+        text: '西藥太傷腎了！我才不吃醫生開的失智症藥物，我改吃市場買的「保證治癒失智」神奇保健品！'
+      },
+      options: [
+        '伯伯說得對，西藥少吃，吃保健食品比較安全。',
+        '只要伯伯覺得有效，吃什麼都可以，心情好最重要。',
+        '目前失智症無法治癒，誇大療效的食品別亂吃，按時吃醫生的藥才能延緩退化喔！'
+      ],
+      answer: '目前失智症無法治癒，誇大療效的食品別亂吃，按時吃醫生的藥才能延緩退化喔！',
+      knowledge: '【衛教知識】錯誤有二：1.目前失智症無法「治癒」，任何宣稱包治的保健品都是詐騙。2.擅自停藥會導致認知功能加速退化，應與醫師討論用藥。'
+    },
+    {
+      type: 'TABLE',
+      question: '請看下方的「AD8極早期失智症篩檢量表」說明。若總分達到多少分以上，就應該建議就醫評估？',
+      tableData: {
+        headers: ['測驗項目', '評分方式', '判讀標準'],
+        rows: [
+          ['包含記憶力、判斷力等8題', '「是(改變)」得1分', '0-1分：正常老化'],
+          ['(例如：重複相同問題)', '「否(沒改變)」得0分', '2分(含)以上：需就醫評估']
+        ]
+      },
+      options: ['1分', '2分', '5分'],
+      answer: '2分',
+      knowledge: '【衛教知識】AD8量表非常簡單，只要有2項以上的行為改變（如重複問話、忘記吃藥、不會用遙控器），就強烈建議帶長輩至神經內科就診。'
+    },
+    {
+      type: 'ORDER',
+      question: '為了延緩大腦退化，長輩參加了「懷舊治療」活動。請排列出引導長輩進行懷舊治療的正確4個步驟：',
+      options: ['聆聽長輩分享過去的故事', '給予長輩肯定與正向回饋', '選擇長輩熟悉的時代主題', '拿出老照片或舊時代的物品'],
+      answer: ['選擇長輩熟悉的時代主題', '拿出老照片或舊時代的物品', '聆聽長輩分享過去的故事', '給予長輩肯定與正向回饋'],
+      knowledge: '【衛教知識】懷舊療法能刺激失智長輩的長存記憶。透過老照片、老歌等媒介，讓長輩重溫過去的成就感與快樂，有助於穩定情緒與延緩退化。'
+    }
+  ],
+  vitality: [
+    { type: 'TF', question: '老人家活動量少、胃口小，所以只要有吃飽就好，不用太在意飲食的營養均衡。', options: ['O', 'X'], answer: 'X', knowledge: '【衛教知識】長者吸收率變差，因此「重質不重量」，每一口都要吃進營養（尤其是蛋白質），隨便吃反而容易造成營養不良與肌少症。' },
+    { type: 'MCQ', question: '判斷長者是否「營養不良」的警訊之一，是過去三個月內體重非計畫性減輕超過多少？', options: ['1公斤', '3公斤 (或體重的5%)', '10公斤', '衣服變緊'], answer: '3公斤 (或體重的5%)', knowledge: '【衛教知識】「非計畫性體重減輕」是衰弱與營養不良的重要指標。如果長輩沒有刻意減肥，體重卻明顯下降，一定要盡快就醫檢查。' },
+    { type: 'RIDDLE', question: '滴滴皆辛苦，長骨不可少，多曬太陽能製造，牙齒也說好。（猜一營養素）', answer: '維生素D', answerKeywords: ['維生素D', '維他命D', '鈣'], knowledge: '【衛教知識】維生素D不僅幫助鈣質吸收、強化骨骼，也與肌肉力量息息相關。每天日照10-15分鐘是獲取維生素D最好的方法。' },
+    { type: 'MULTI', question: '針對「牙口不好」的長輩，飲食調理應該注意哪些原則？(可複選)', options: ['只吃流質或打泥的食物', '將食材切碎、煮軟', '利用鳳梨/木瓜酵素軟化肉類', '多吃堅硬的堅果補腦'], answer: ['將食材切碎、煮軟', '利用鳳梨/木瓜酵素軟化肉類'], knowledge: '【衛教知識】長期只吃泥狀食物會加速咀嚼肌退化；應盡量保留食物外觀，透過切小塊、燉煮、果汁浸泡等方式改變「質地」，讓長輩仍能享受咀嚼感。' },
+    { type: 'FILL', question: '預防長者肌肉流失，每餐都應該攝取大約一個「____」大小的蛋白質食物。', answer: '掌心', answerKeywords: ['掌心', '手掌'], knowledge: '【衛教知識】「每餐一掌心」是好記的口訣。蛋白質應平均分配在三餐中，吸收利用率最好。來源包含豆、魚、蛋、肉類。' },
+    { type: 'DESIGN', question: '請為一位「乳糖不耐症（喝牛奶會拉肚子）」的長輩，設計兩種能補充鈣質的餐點或點心。', answer: '開放題', knowledge: '【衛教知識】好設計！不喝牛奶也可吃：板豆腐、豆乾、黑芝麻糊、小魚乾、深綠色蔬菜（如芥藍、紅莧菜）。這些都是優秀的鈣質來源。' },
+    { type: 'DISCUSS', question: '長輩因為覺得假牙不舒服，開始拒絕吃肉和蔬菜，只喝稀飯配醬瓜，你會如何解決？', answer: '開放題', knowledge: '【衛教知識】首先應帶長輩回診牙科調整假牙！同時在過渡期，提供質地柔軟的優質蛋白（蒸蛋、豆腐、絞肉丸）及煮軟的瓜果類蔬菜，避免營養迅速流失。' },
+    { 
+      type: 'ERROR', 
+      question: '找錯：張爺爺為了養生，每天只吃燙青菜和白飯，完全不碰油和肉類，覺得這樣最清淡健康。', 
+      answer: '開放題', 
+      knowledge: '【衛教知識】錯誤：1.無蛋白質會導致肌少症。2.無油脂會導致脂溶性維生素(A,D,E,K)無法吸收，且容易便秘、皮膚乾燥。長者需要適量的「好油」。',
+      correctionData: [
+        { text: '張爺爺為了養生，每天只吃燙青菜和白飯，' },
+        { text: '完全不碰油和肉類', isError: true, correction: '應攝取優質蛋白質與好油' },
+        { text: '，覺得這樣最清淡健康。' }
+      ]
+    },
+    { type: 'MATCH', question: '配對食物種類與其提供的關鍵營養：', pairs: { '雞蛋、豆腐': '優質蛋白質 (建構肌肉)', '深綠色蔬菜': '膳食纖維與葉酸 (防便秘防失智)', '橄欖油、堅果': '不飽和脂肪酸 (保護心血管)' }, options: ['優質蛋白質 (建構肌肉)', '膳食纖維與葉酸 (防便秘防失智)', '不飽和脂肪酸 (保護心血管)'], knowledge: '【衛教知識】飲食多樣化是營養力的基礎，每天盡可能吃到不同顏色的蔬果與多元的蛋白質來源。' },
+    { 
+      type: 'DIALOGUE', 
+      question: '請選擇最合適的回應方式：', 
+      dialogue: {
+        speaker: '陳爺爺',
+        text: '我聽說喝大骨湯可以補鈣防骨折！所以我每天喝熬了八小時的大骨湯，裡面的肉太硬我就不吃了。'
+      },
+      options: [
+        '大骨湯鈣質其實很少，而且只喝湯不吃肉會缺乏蛋白質。我們改喝牛奶配軟爛的豆腐肉末好嗎？',
+        '爺爺真懂養生！大骨湯的精華都在湯裡，多喝一點就對了。',
+        '骨頭湯太油了，爺爺您以後每天只吃燙青菜就好。'
+      ],
+      answer: '大骨湯鈣質其實很少，而且只喝湯不吃肉會缺乏蛋白質。我們改喝牛奶配軟爛的豆腐肉末好嗎？',
+      knowledge: '【衛教知識】大骨湯的鈣質溶出率極低（喝幾十碗才等於一杯牛奶），且含有大量飽和脂肪酸。只喝湯不吃肉，更會導致蛋白質嚴重缺乏。'
+    },
+    {
+      type: 'TABLE',
+      question: '根據國民健康署建議，65歲以上長者的 BMI（身體質量指數）維持在哪個區間，死亡率最低、最能抵抗衰弱？',
+      tableData: {
+        headers: ['年齡層', '過輕', '正常適宜區間', '過重'],
+        rows: [
+          ['18歲~64歲成人', '< 18.5', '18.5 ~ 24', '> 24'],
+          ['65歲以上長者', '< 22', '22 ~ 27', '> 27']
+        ]
+      },
+      options: ['18.5 ~ 24', '22 ~ 27', '越低越好'],
+      answer: '22 ~ 27',
+      knowledge: '【衛教知識】長輩「有點肉」其實更健康！微胖的長輩（BMI 22-27）在面對疾病時有更好的營養儲備對抗消耗，死亡率與失能率反而最低。'
+    },
+    {
+      type: 'ORDER',
+      question: '長輩若有吞嚥困難（容易嗆咳），在進食時請排列出確保安全的4個正確步驟：',
+      options: ['吞嚥後確認口腔已經清空', '專心吃飯，不邊吃邊講話', '坐直90度，雙腳踩平地面', '使用湯匙，小口小口進食'],
+      answer: ['坐直90度，雙腳踩平地面', '專心吃飯，不邊吃邊講話', '使用湯匙，小口小口進食', '吞嚥後確認口腔已經清空'],
+      knowledge: '【衛教知識】嗆咳可能引發致命的吸入性肺炎。進食姿勢極為重要：必須坐直、微微低頭吞嚥；並且要專心不說話，吃完一口確認吞乾淨再吃下一口。'
+    }
+  ],
+  psychological: [
+    { type: 'TF', question: '老年憂鬱症的表現不一定是整天哭泣，常常會以「身體疼痛、胸悶、睡不著」等身體不適來表現。', options: ['O', 'X'], answer: 'O', knowledge: '【衛教知識】這稱為「偽裝型憂鬱症」。長輩不擅長表達心理痛苦，常轉化為全身痠痛、腸胃不適等。若檢查不出器官毛病，就要懷疑是憂鬱症。' },
+    { type: 'MCQ', question: '下列哪一項是老年憂鬱症常見的危險警訊？', options: ['突然變得非常開朗', '對原本喜歡的事物完全失去興趣', '每天準時去公園運動', '食慾大增變胖'], answer: '對原本喜歡的事物完全失去興趣', knowledge: '【衛教知識】「失去興趣(Anhedonia)」與「持續情緒低落」是憂鬱症兩大核心症狀。原本愛下棋、愛聊天的長輩突然都不想做了，就是大警訊。' },
+    { type: 'RIDDLE', question: '心中烏雲罩，笑容全不見，莫道是老化，關心能解開。（猜一心理狀態）', answer: '憂鬱症', answerKeywords: ['憂鬱', '老年憂鬱', '心情不好'], knowledge: '【衛教知識】老年憂鬱常被誤認為是正常老化而延誤就醫。它會增加失智風險、降低免疫力，甚至有自殘風險，需要家人積極介入。' },
+    { type: 'MULTI', question: '哪些方法可以幫助長輩遠離憂鬱情緒？(可複選)', options: ['鼓勵參與社區據點活動', '多傾聽，少說教', '叫他自己「想開一點」', '培養園藝、唱歌等興趣'], answer: ['鼓勵參與社區據點活動', '多傾聽，少說教', '培養園藝、唱歌等興趣'], knowledge: '【衛教知識】對憂鬱症患者說「想開一點」會造成反效果，讓他們覺得不被理解。陪伴、傾聽、鼓勵社會參與，才是最好的良藥。' },
+    { type: 'FILL', question: '當發現長輩有嚴重憂鬱傾向，甚至透露輕生念頭時，可撥打24小時免付費的安心專線「____」尋求協助。', answer: '1925', answerKeywords: ['1925', '一九二五'], knowledge: '【衛教知識】1925（依舊愛我）是衛福部提供的24小時安心專線。遇心理危機時，請尋求專業人員協助，切勿獨自承擔。' },
+    { type: 'DESIGN', question: '假設長輩因為退休後覺得「自己沒有用了」而悶悶不樂，請設計一個能讓他重新建立「價值感」的活動。', answer: '開放題', knowledge: '【衛教知識】很棒的思考！例如：「傳承食譜計畫」請長輩教孫子做拿手菜；或「回憶錄訪談」，讓長輩分享人生經驗。讓他們感到被需要，是找回價值的關鍵。' },
+    { type: 'DISCUSS', question: '很多長輩覺得「看精神科就是瘋子」，非常抗拒就醫。如果你發現長輩有憂鬱症狀，你會如何溝通？', answer: '開放題', knowledge: '【衛教知識】可以「包裝」就醫理由。例如：「我們去拿個讓你晚上比較好睡的藥」、「去看看自律神經失調」，或者請長輩信任的家醫科醫師幫忙轉診，降低抗拒感。' },
+    { 
+      type: 'ERROR', 
+      question: '找錯：林奶奶一直抱怨胸悶、不想出門。兒子說：「你就是日子過太爽、太閒了啦！不要無病呻吟，明天跟我去爬山就會好了。」', 
+      answer: '開放題', 
+      knowledge: '【衛教知識】錯誤：否定與指責長輩的感受。「太閒、無病呻吟」的標籤會讓長輩更退縮。憂鬱症患者當下常缺乏精力，強迫去爬山可能會讓他們更感挫折。',
+      correctionData: [
+        { text: '林奶奶一直抱怨胸悶、不想出門。兒子說：「' },
+        { text: '你就是日子過太爽、太閒了啦！不要無病呻吟', isError: true, correction: '勿否定指責，應同理其感受' },
+        { text: '，' },
+        { text: '明天跟我去爬山就會好了', isError: true, correction: '勿勉強缺乏精力的患者' },
+        { text: '。」' }
+      ]
+    },
+    { type: 'MATCH', question: '配對情緒困境與適合的應對/資源：', pairs: { '感到孤單缺乏陪伴': '參加社區關懷據點/長青學苑', '感到焦慮睡不著': '練習腹式呼吸/尋求醫療協助', '感到失去人生目標': '參與志工服務/經驗傳承' }, options: ['參加社區關懷據點/長青學苑', '練習腹式呼吸/尋求醫療協助', '參與志工服務/經驗傳承'], knowledge: '【衛教知識】身心靈的健康是一體的。透過社會參與、放鬆技巧與重建價值，能全方位對抗老年憂鬱。' },
+    { 
+      type: 'DIALOGUE', 
+      question: '請選擇最合適的回應方式：', 
+      dialogue: {
+        speaker: '鄰居阿姨',
+        text: '那個鄰居爺爺最近總是很悲觀，我勸他：「你就是不知足啦！孩子都那麼會賺錢了，有什麼好憂鬱的？想開一點啦！」'
+      },
+      options: [
+        '阿姨妳說得太有道理了，爺爺就是人在福中不知福。',
+        '阿姨，憂鬱症是生病了，不是不知足。我們應該多傾聽同理他的痛苦，而不是叫他直接想開一點。',
+        '爺爺只是想引起別人注意啦，阿姨妳別理他過幾天就好了。'
+      ],
+      answer: '阿姨，憂鬱症是生病了，不是不知足。我們應該多傾聽同理他的痛苦，而不是叫他直接想開一點。',
+      knowledge: '【衛教知識】憂鬱症是大腦神經傳導物質失調的疾病，不是「不知足」或「想不開」。用外在物質條件去否定他的痛苦，只會讓他更不敢求助。'
+    },
+    {
+      type: 'TABLE',
+      question: '根據「簡易老人憂鬱量表 (GDS-15)」，如果長輩的總得分超過幾分，就代表有憂鬱傾向，需尋求專業協助？',
+      tableData: {
+        headers: ['測驗說明', '得分級距', '狀態判讀'],
+        rows: [
+          ['共15題，測量過去一週情緒', '0 - 4 分', '正常，情緒穩定'],
+          ['答「是」或「否」', '5 - 9 分', '輕度憂鬱傾向'],
+          ['（部分反向題）', '10 - 15 分', '中度至重度憂鬱']
+        ]
+      },
+      options: ['大於 2 分', '大於 5 分', '大於 10 分'],
+      answer: '大於 5 分',
+      knowledge: '【衛教知識】GDS-15 是一份簡單的篩檢工具。大於5分即表示長輩有憂鬱傾向；若大於10分則高度懷疑有憂鬱症，請務必尋求身心科/精神科協助。'
+    },
+    {
+      type: 'ORDER',
+      question: '當你發現長輩透露出輕生念頭時（例如：覺得自己是累贅、活著沒意思），請排列出正確的緊急處理4步驟：',
+      options: ['立刻尋求專業醫療或撥打1925', '傾聽並同理他的痛苦感受', '悄悄移除周圍的危險物品', '保持冷靜，不急著反駁他'],
+      answer: ['保持冷靜，不急著反駁他', '傾聽並同理他的痛苦感受', '悄悄移除周圍的危險物品', '立刻尋求專業醫療或撥打1925'],
+      knowledge: '【衛教知識】面對輕生警訊，千萬別說「你不要亂想」。應保持冷靜，讓他把痛苦說出來，確保環境安全後，立刻陪同就醫或求助1925專線。'
+    }
+  ],
+  hearing: [
+    { type: 'TF', question: '聽力退化只是會聽不清楚而已，對大腦健康和失智症風險沒有任何影響。', options: ['O', 'X'], answer: 'X', knowledge: '【衛教知識】醫學證實，聽力受損是失智症最大的「可修改危險因子」！聽不見會導致大腦缺乏刺激，並引發社交退縮，加速認知退化。' },
+    { type: 'MCQ', question: '發現長輩看電視時聲音越開越大聲，常常答非所問，正確的第一步處理方式是？', options: ['買更強的喇叭給他', '帶他去耳鼻喉科做專業聽力檢查', '大聲對他吼叫', '減少跟他說話'], answer: '帶他去耳鼻喉科做專業聽力檢查', knowledge: '【衛教知識】電視開大聲是聽損典型症狀。應盡速就醫，排除耳垢阻塞或疾病問題，並由聽力師進行純音聽力測驗，評估是否需配戴輔具。' },
+    { type: 'RIDDLE', question: '左右各一扇，老來漸漸關，若不配幫手，世界變孤單。（猜一身體器官）', answer: '耳朵', answerKeywords: ['耳朵', '耳'], knowledge: '【衛教知識】聽力老化（老年性聽損）通常是高頻聽力先受損，所以會覺得「聽得到聲音，但聽不懂內容（特別是氣音或女聲）」。' },
+    { type: 'MULTI', question: '與聽力退化的長輩溝通時，哪些技巧是正確的？(可複選)', options: ['面對面，看著對方說話', '語速放慢、咬字清晰', '盡量在吵雜的環境中聊天', '搭配手勢或表情輔助'], answer: ['面對面，看著對方說話', '語速放慢、咬字清晰', '搭配手勢或表情輔助'], knowledge: '【衛教知識】大聲吼叫沒有用（反而會讓高音更刺耳）！應降低環境噪音，面對面讓長輩能讀唇語和看表情，降低音調、放慢速度說話。' },
+    { type: 'FILL', question: '當長輩聽力受損影響日常溝通時，由專業人員驗配並配戴「____」器，是改善聽力的最重要方法。', answer: '助聽', answerKeywords: ['助聽', '助聽器'], knowledge: '【衛教知識】助聽器如同大腦的聽覺重訓設備。越早配戴，大腦越不容易忘記聲音的記憶，適應期也越短。' },
+    { type: 'DESIGN', question: '請設計一個「對聽損長輩友善」的居家客廳環境（考慮噪音、光線、座位安排）。', answer: '開放題', knowledge: '【衛教知識】良好設計：1.地上鋪地毯吸音、關閉背景電視聲音(減少干擾)。2.光線明亮照在說話者臉上(方便讀唇)。3.座位安排在長輩聽力較好那一側。' },
+    { type: 'DISCUSS', question: '長輩覺得戴助聽器很吵、很不舒服，甚至覺得「戴那個很像殘障」而拒絕配戴，你會如何協助他？', answer: '開放題', knowledge: '【衛教知識】助聽器需要「大腦適應期」（約1-3個月）。應鼓勵長輩先從安靜的室內開始戴，每天循序漸進增加時間。並強調「戴助聽器就像戴老花眼鏡一樣正常」。' },
+    { 
+      type: 'ERROR', 
+      question: '找錯：陳爺爺聽力變差，孫子為了讓他聽見，總是靠在他耳朵旁邊大聲吼叫，並且為了不傷爺爺自尊心，從來不提帶他去檢查聽力。', 
+      answer: '開放題', 
+      knowledge: '【衛教知識】錯誤：1.靠耳邊大聲吼叫會讓聲音失真且刺耳，且長輩看不到表情。2.諱疾忌醫會錯失黃金介入期，加速失智與社交孤立。',
+      correctionData: [
+        { text: '陳爺爺聽力變差，孫子為了讓他聽見，總是' },
+        { text: '靠在他耳朵旁邊大聲吼叫', isError: true, correction: '應面對面、放慢語速說話' },
+        { text: '，並且為了不傷爺爺自尊心，' },
+        { text: '從來不提帶他去檢查聽力', isError: true, correction: '應及早就醫檢查並評估輔具' },
+        { text: '。' }
+      ]
+    },
+    { type: 'MATCH', question: '配對護耳觀念與原因：', pairs: { '避免長時間暴露高分貝環境': '預防毛細胞提早受損', '不自己用硬物深挖耳朵': '預防耳膜受傷與耳垢推更深', '定期進行聽力篩檢': '及早發現退化及早介入' }, options: ['預防毛細胞提早受損', '預防耳膜受傷與耳垢推更深', '及早發現退化及早介入'], knowledge: '【衛教知識】保護聽力從日常做起，65歲以上長者建議每年至少進行一次常規聽力檢查。' },
+    { 
+      type: 'DIALOGUE', 
+      question: '請選擇最合適的回應方式：', 
+      dialogue: {
+        speaker: '阿公',
+        text: '助聽器好貴，我去菜市場買了一個幾百塊的聲音放大器，結果吵死人，我乾脆拔掉再也不戴了！'
+      },
+      options: [
+        '便宜的放大器會把噪音一起放大，很傷聽力！助聽器還是要找專業的聽力師檢查驗配喔。',
+        '剛戴本來就會吵，阿公你忍耐個半年就會習慣了，繼續戴著吧！',
+        '既然戴了不舒服，那阿公以後就不要戴了，我們對你講話大聲一點就好。'
+      ],
+      answer: '便宜的放大器會把噪音一起放大，很傷聽力！助聽器還是要找專業的聽力師檢查驗配喔。',
+      knowledge: '【衛教知識】市售未經驗配的「聲音放大器」會將噪音和說話聲一併放大，極易傷害殘存聽力。助聽器屬醫療器材，需由聽力師專業驗配與調整。'
+    },
+    {
+      type: 'TABLE',
+      question: '參考下方的「環境音量與聽力影響表」，一般建議長期待在超過多少分貝的環境下，就會對聽力造成永久性損害？',
+      tableData: {
+        headers: ['環境情境', '約略分貝(dB)', '對聽力的影響'],
+        rows: [
+          ['圖書館 / 輕聲細語', '30 - 40 dB', '安靜舒適'],
+          ['正常交談 / 一般辦公室', '50 - 60 dB', '安全範圍'],
+          ['大馬路旁 / 吹風機', '80 - 85 dB', '長期暴露會損害聽力'],
+          ['演唱會 / 救護車鳴笛', '110 - 120 dB', '短時間即造成極大損害']
+        ]
+      },
+      options: ['60 分貝', '85 分貝', '110 分貝'],
+      answer: '85 分貝',
+      knowledge: '【衛教知識】世衛組織(WHO)建議，暴露在85分貝以上的環境過久就會導致聽力受損（毛細胞死亡無法再生）。若需在噪音環境，請務必佩戴耳塞防護。'
+    },
+    {
+      type: 'ORDER',
+      question: '長輩剛配戴新的助聽器時，需要時間讓大腦重新適應聲音。請排列出適應助聽器環境的4個進階步驟：',
+      options: ['一對一在安靜的室內對談', '到戶外吵雜的菜市場或馬路邊', '在家中看電視或多人聊天', '每天只戴1-2小時先適應機械音'],
+      answer: ['每天只戴1-2小時先適應機械音', '一對一在安靜的室內對談', '在家中看電視或多人聊天', '到戶外吵雜的菜市場或馬路邊'],
+      knowledge: '【衛教知識】戴上助聽器不會立刻變回年輕聽力！大腦需要1至3個月「重新學習」聲音。應由安靜到吵雜、由短時間到長時間，給長輩滿滿的鼓勵與耐心。'
+    }
+  ],
+  vision: [
+    { type: 'TF', question: '白內障和老花眼是一樣的，老了都會得，只要去藥局買眼藥水點就會好。', options: ['O', 'X'], answer: 'X', knowledge: '【衛教知識】老花眼是水晶體彈性疲乏；白內障是水晶體「混濁」（像毛玻璃），眼藥水只能延緩，唯一治癒方法是白內障手術換人工水晶體。' },
+    { type: 'MCQ', question: '看東西時發現「直線變彎曲」、視野中心出現暗影，這可能是哪種嚴重眼疾的徵兆？', options: ['老花眼', '黃斑部病變', '結膜炎', '乾眼症'], answer: '黃斑部病變', knowledge: '【衛教知識】黃斑部病變會嚴重影響中心視力，可利用「阿姆斯勒方格表」（方格子圖）進行居家自我檢測，若有扭曲模糊應立即就醫。' },
+    { type: 'RIDDLE', question: '靈魂的窗戶，歲月蒙上霧，看燈有眩光，開刀能康復。（猜一眼疾）', answer: '白內障', answerKeywords: ['白內障'], knowledge: '【衛教知識】白內障典型症狀包括：視力模糊、對光敏感（怕光、眩光）、色彩變暗淡。是長者最常見的視力殺手。' },
+    { type: 'MULTI', question: '為了保護長輩視力並預防跌倒，居家環境可以做哪些改善？(可複選)', options: ['增加室內照明亮度', '走道與樓梯保持淨空', '使用昏暗浪漫的氣氛燈', '在樓梯邊緣貼顏色對比的反光條'], answer: ['增加室內照明亮度', '走道與樓梯保持淨空', '在樓梯邊緣貼顏色對比的反光條'], knowledge: '【衛教知識】長輩需要的照明亮度是年輕人的2-3倍！改善照明、增加台階對比色，能有效彌補視力退化帶來的跌倒風險。' },
+    { type: 'FILL', question: '外出陽光強烈時，長輩應配戴有抗UV功能的「____」以減少紫外線對眼睛水晶體與黃斑部的傷害。', answer: '太陽眼鏡', answerKeywords: ['太陽眼鏡', '墨鏡'], knowledge: '【衛教知識】紫外線是加速白內障與黃斑部病變的元兇之一。挑選太陽眼鏡要注意有「UV400」標章才具備真正的防護力。' },
+    { type: 'DESIGN', question: '請幫有「白內障（對眩光敏感、立體感變差）」的長輩，設計一個安全的浴室環境（包含照明、防滑、顏色）。', answer: '開放題', knowledge: '【衛教知識】好設計包含：1.使用均勻防眩光的燈具。2.馬桶與防滑墊使用與地板對比強烈的顏色（如白馬桶/深色地磚），幫助長輩辨識邊界。3.加裝扶手。' },
+    { type: 'DISCUSS', question: '長輩因為視力變差，變得不敢出門，整天待在昏暗的房間裡。你會如何幫助他重建信心？', answer: '開放題', knowledge: '【衛教知識】首先陪同就醫，確認視力是否能透過眼鏡或手術改善。若不可逆，可引入「視覺復健」，善用放大鏡、語音報時手錶等輔具，並牽著他熟悉安全的外出路線。' },
+    { 
+      type: 'ERROR', 
+      question: '找錯：趙奶奶看報紙覺得模糊，直接拿鄰居李奶奶的老花眼鏡來戴，覺得看得很清楚就一直戴著，且晚上為了省電，都只開一盞小夜燈看電視。', 
+      answer: '開放題', 
+      knowledge: '【衛教知識】錯誤：1.老花眼鏡需專業驗配，戴別人的度數不合會導致頭暈眼壓高。2.只開小夜燈看電視，明暗對比過大，非常傷眼且易引發青光眼。',
+      correctionData: [
+        { text: '趙奶奶看報紙覺得模糊，' },
+        { text: '直接拿鄰居李奶奶的老花眼鏡來戴', isError: true, correction: '眼鏡需由專業人員驗配' },
+        { text: '，覺得看得很清楚就一直戴著，且晚上為了省電，' },
+        { text: '都只開一盞小夜燈看電視', isError: true, correction: '應維持充足均勻的照明' },
+        { text: '。' }
+      ]
+    },
+    { type: 'MATCH', question: '配對護眼營養素與其常見的食物來源：', pairs: { '葉黃素': '深綠色蔬菜 (菠菜、地瓜葉)', '維生素A': '橘黃色食物 (胡蘿蔔、南瓜)', '花青素': '紫紅色水果 (藍莓、葡萄)' }, options: ['深綠色蔬菜 (菠菜、地瓜葉)', '橘黃色食物 (胡蘿蔔、南瓜)', '紫紅色水果 (藍莓、葡萄)'], knowledge: '【衛教知識】葉黃素能保護黃斑部；維生素A防夜盲與乾眼；花青素能抗氧化放鬆眼部微血管。均衡飲食是護眼根本。' },
+    { 
+      type: 'DIALOGUE', 
+      question: '請選擇最合適的回應方式：', 
+      dialogue: {
+        speaker: '趙奶奶',
+        text: '我晚上睡不著，覺得開大燈會吵到老伴，我就在全黑的房間裡把手機螢幕調到最亮看影片，這總行了吧！'
+      },
+      options: [
+        '奶奶真貼心，這樣爺爺就不會被光線吵醒了。',
+        '手機調最亮看得很清楚，奶奶這樣做很好。',
+        '在暗處看超亮螢幕非常傷黃斑部，還容易引發青光眼！滑手機環境一定要保持明亮喔。'
+      ],
+      answer: '在暗處看超亮螢幕非常傷黃斑部，還容易引發青光眼！滑手機環境一定要保持明亮喔。',
+      knowledge: '【衛教知識】在暗處滑手機，瞳孔會放大，導致大量強烈藍光直射黃斑部，極易引發黃斑部病變；同時明暗對比過大，眼壓易升高，誘發青光眼。'
+    },
+    {
+      type: 'TABLE',
+      question: '根據下表對「老花眼度數與年齡」的概略對照，一位60歲從未戴過老花眼鏡的長者，大約需要幾度的老花眼鏡？',
+      tableData: {
+        headers: ['年齡', '概略老花度數'],
+        rows: [
+          ['40 - 45 歲', '100度 ~ 150度'],
+          ['50 - 55 歲', '200度 ~ 250度'],
+          ['60 歲以上', '300度 ~ 350度']
+        ]
+      },
+      options: ['100度', '200度', '300度'],
+      answer: '300度',
+      knowledge: '【衛教知識】這只是概略參考表！老花度數每5年約增加50度，到了60歲大約在300度左右穩定。請注意，一定要去眼科或專業眼鏡行「實際驗光」再配鏡！'
+    },
+    {
+      type: 'ORDER',
+      question: '為了預防感染與確保藥效，請排列出幫長輩（或長輩自己）「正確點眼藥水」的4個步驟：',
+      options: ['用手指輕輕向下拉開下眼瞼', '將藥水滴入下眼白與眼瞼間的溝', '確實用肥皂清洗雙手', '閉眼並輕輕按壓內眼角(鼻淚管)'],
+      answer: ['確實用肥皂清洗雙手', '用手指輕輕向下拉開下眼瞼', '將藥水滴入下眼白與眼瞼間的溝', '閉眼並輕輕按壓內眼角(鼻淚管)'],
+      knowledge: '【衛教知識】點眼藥水絕不可直接滴在黑眼珠上(會刺痛)。滴在下拉的眼瞼溝內後，閉眼輕壓內眼角1-2分鐘，可防止藥水流進喉嚨產生苦味並增加眼部吸收。'
+    }
+  ]
+};
+
+// ==========================================
+// 2. 主應用程式元件
+// ==========================================
+export default function App() {
+  const [currentTheme, setCurrentTheme] = useState(null);
+  const [punchedHoles, setPunchedHoles] = useState({});
+  const [activeQuestionIdx, setActiveQuestionIdx] = useState(null);
+
+  // 當前主題的狀態
+  const currentThemeData = THEMES.find(t => t.id === currentTheme);
+  const currentQuestions = currentTheme ? QUESTIONS[currentTheme] : [];
+  // 更新：從 9 改為 12
+  const currentThemePunched = currentTheme ? (punchedHoles[currentTheme] || Array(12).fill(false)) : Array(12).fill(false);
+
+  const handleSelectTheme = (themeId) => {
+    setCurrentTheme(themeId);
+    if (!punchedHoles[themeId]) {
+      // 初始化 12 個洞的狀態
+      setPunchedHoles(prev => ({ ...prev, [themeId]: Array(12).fill(false) }));
+    }
+  };
+
+  const handlePunchHole = (index) => {
+    if (currentThemePunched[index]) return; // 已翻開過不再作用
+    setActiveQuestionIdx(index);
+  };
+
+  const markHolePunched = (index) => {
+    setPunchedHoles(prev => {
+      const newPunched = [...prev[currentTheme]];
+      newPunched[index] = true;
+      return { ...prev, [currentTheme]: newPunched };
+    });
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-100 font-sans text-gray-800">
+      {/* 標題列 (優化手機版排版與加入設計者) */}
+      <header className="bg-white shadow-sm p-3 md:p-4 sticky top-0 z-10 flex flex-col md:flex-row justify-between items-center gap-3 md:gap-4">
+        <div className="flex flex-col md:flex-row justify-between items-center w-full gap-2">
+          <div className="text-center md:text-left">
+            <h1 className="text-2xl md:text-4xl font-bold text-blue-800 flex items-center justify-center md:justify-start gap-2 md:gap-3">
+              <span className="text-3xl md:text-5xl">🎯</span> ICOPE六力健康戳戳樂
+            </h1>
+            <p className="text-sm md:text-xl text-gray-500 mt-1 font-medium">長者內在能力檢測．趣味多元問答遊戲</p>
+          </div>
+          <div className="text-xs md:text-base font-bold text-gray-400 bg-gray-50 px-3 py-1 md:px-4 md:py-2 rounded-lg border border-gray-100 mt-2 md:mt-0 shadow-sm">
+            設計者：愛迪樂 鍾孟修 職能治療師
+          </div>
+        </div>
+        {currentTheme && (
+          <button 
+            onClick={() => setCurrentTheme(null)}
+            className="w-full md:w-auto px-4 py-2 md:px-6 md:py-3 bg-gray-200 hover:bg-gray-300 rounded-xl font-bold text-base md:text-xl transition-colors shadow-sm whitespace-nowrap"
+          >
+            返回主選單
+          </button>
+        )}
+      </header>
+
+      <main className="p-4 max-w-6xl mx-auto mt-4 md:mt-8">
+        {!currentTheme ? (
+          <ThemeSelector onSelect={handleSelectTheme} punchedHoles={punchedHoles} />
+        ) : (
+          <PunchBoard 
+            themeData={currentThemeData} 
+            punchedState={currentThemePunched} 
+            questions={currentQuestions}
+            onPunch={handlePunchHole} 
+          />
+        )}
+      </main>
+
+      {/* 題目彈出視窗 */}
+      {activeQuestionIdx !== null && (
+        <QuestionModal 
+          themeColor={currentThemeData.color}
+          questionData={currentQuestions[activeQuestionIdx]}
+          onClose={() => {
+            markHolePunched(activeQuestionIdx);
+            setActiveQuestionIdx(null);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+// ==========================================
+// 3. 子元件：主題選擇器
+// ==========================================
+function ThemeSelector({ onSelect, punchedHoles }) {
+  return (
+    <div className="animate-fade-in">
+      <h2 className="text-2xl md:text-3xl font-bold mb-8 text-center text-gray-700">請選擇一個健康主題開始遊戲</h2>
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-6 md:gap-8">
+        {THEMES.map(theme => {
+          const punchedCount = punchedHoles[theme.id] ? punchedHoles[theme.id].filter(Boolean).length : 0;
+          // 判斷完成條件改為 12
+          const isComplete = punchedCount === 12;
+
+          return (
+            <button
+              key={theme.id}
+              onClick={() => onSelect(theme.id)}
+              className={`${theme.bgColor} border-4 border-transparent hover:border-${theme.color.split('-')[1]}-400 rounded-[2rem] p-8 shadow-md hover:shadow-xl transition-all transform hover:-translate-y-1 flex flex-col items-center gap-4 relative overflow-hidden`}
+            >
+              {isComplete && (
+                <div className="absolute top-0 right-0 bg-green-500 text-white text-base md:text-lg px-4 py-2 rounded-bl-xl font-bold">
+                  已完成 🎉
+                </div>
+              )}
+              <div className={`text-6xl md:text-7xl ${isComplete ? 'opacity-50' : ''}`}>
+                {theme.icon}
+              </div>
+              <h3 className="text-2xl md:text-4xl font-bold mt-2">{theme.name}</h3>
+              <div className="w-full bg-white rounded-full h-4 mt-3 shadow-inner">
+                <div 
+                  className={`${theme.color} h-4 rounded-full`} 
+                  style={{ width: `${(punchedCount / 12) * 100}%` }}
+                ></div>
+              </div>
+              <p className="text-base md:text-xl font-medium text-gray-500">{punchedCount} / 12 已解鎖</p>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ==========================================
+// 4. 子元件：戳戳樂 12 宮格
+// ==========================================
+function PunchBoard({ themeData, punchedState, questions, onPunch }) {
+  const isAllPunched = punchedState.every(Boolean);
+
+  return (
+    <div className="flex flex-col items-center animate-fade-in">
+      <div className="text-center mb-8">
+        <h2 className="text-4xl md:text-5xl font-bold flex items-center justify-center gap-4">
+          <span className="text-5xl md:text-6xl">{themeData.icon}</span> 
+          {themeData.name}戳戳樂
+        </h2>
+        <p className="text-gray-600 mt-4 text-xl md:text-2xl font-medium">點擊不同題型牌卡，看看裡面藏著什麼健康知識！</p>
+      </div>
+
+      {isAllPunched && (
+        <div className="mb-8 p-6 bg-green-100 text-green-800 rounded-2xl border-2 border-green-300 font-bold text-2xl md:text-3xl animate-bounce shadow-md">
+          🎉 恭喜！您已完成「{themeData.name}」的所有衛教挑戰！
+        </div>
+      )}
+
+      {/* 改為 3或4 欄的排版，搭配圓角長方形 */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 md:gap-6 bg-white p-6 md:p-8 rounded-[3rem] shadow-2xl border-8 border-gray-200 w-full">
+        {punchedState.map((isPunched, idx) => (
+          <div 
+            key={idx}
+            onClick={() => onPunch(idx)}
+            className={`
+              w-full aspect-[4/3] rounded-[2rem] cursor-pointer relative
+              flex flex-col items-center justify-center transition-all duration-500
+              ${isPunched 
+                ? 'bg-gray-200 shadow-inner border-4 border-gray-300 transform scale-95' 
+                : `${themeData.color} text-white shadow-xl hover:shadow-2xl hover:scale-[1.03] active:scale-95 border-4 border-white`}
+            `}
+            style={{
+              backgroundImage: isPunched ? 'linear-gradient(135deg, #e5e7eb 0%, #d1d5db 100%)' : 'none',
+            }}
+          >
+            {isPunched ? (
+              <div className="text-gray-400 text-opacity-80 font-black text-2xl md:text-3xl tracking-widest rotate-[-10deg]">已翻開</div>
+            ) : (
+              <div className="flex flex-col items-center justify-center drop-shadow-md p-2">
+                <span className="text-5xl md:text-7xl font-black">{idx + 1}</span>
+                <span className="text-sm md:text-xl mt-2 md:mt-3 bg-white bg-opacity-20 px-3 md:px-4 py-1 md:py-2 rounded-xl font-bold tracking-wide border border-white border-opacity-30 text-center leading-tight">
+                  {Q_TYPES[questions[idx].type]}
+                </span>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ==========================================
+// 5. 子元件：題目與衛教彈出視窗
+// ==========================================
+function QuestionModal({ themeColor, questionData, onClose }) {
+  const [userAnswer, setUserAnswer] = useState('');
+  const [userMultiAnswer, setUserMultiAnswer] = useState([]);
+  
+  // 配對連線題的狀態
+  const [matchPairs, setMatchPairs] = useState([]); 
+  const [activeLeft, setActiveLeft] = useState(null);
+  const [activeRight, setActiveRight] = useState(null);
+
+  // 排序題的狀態 (儲存使用者依序選擇的項目)
+  const [userOrder, setUserOrder] = useState([]);
+
+  const [showResult, setShowResult] = useState(false);
+  const [isCorrect, setIsCorrect] = useState(false);
+
+  const qType = questionData.type;
+  const isSubjective = ['DESIGN', 'DISCUSS', 'ERROR'].includes(qType);
+
+  // 隨機打亂配對題右側的選項，增加難度
+  const shuffledMatchOptions = React.useMemo(() => {
+    if (qType !== 'MATCH') return [];
+    return [...questionData.options].sort(() => Math.random() - 0.5);
+  }, [questionData]);
+
+  // 排序題選項
+  const orderOptions = questionData.options;
+
+  // 監聽連線配對：左右都有選中時，建立連線
+  useEffect(() => {
+    if (activeLeft && activeRight) {
+      setMatchPairs(prev => [
+        ...prev.filter(p => p.left !== activeLeft && p.right !== activeRight),
+        { left: activeLeft, right: activeRight }
+      ]);
+      setActiveLeft(null);
+      setActiveRight(null);
+    }
+  }, [activeLeft, activeRight]);
+
+  const handleMatchClick = (side, val) => {
+    if (side === 'left') {
+      const isMatched = matchPairs.find(p => p.left === val);
+      if (isMatched && activeLeft !== val) {
+         setMatchPairs(prev => prev.filter(p => p.left !== val));
+      }
+      setActiveLeft(val === activeLeft ? null : val);
+    } else {
+      const isMatched = matchPairs.find(p => p.right === val);
+      if (isMatched && activeRight !== val) {
+         setMatchPairs(prev => prev.filter(p => p.right !== val));
+      }
+      setActiveRight(val === activeRight ? null : val);
+    }
+  };
+
+  const handleSubmit = () => {
+    let correct = false;
+
+    if (qType === 'TF' || qType === 'MCQ' || qType === 'TABLE' || qType === 'DIALOGUE') {
+      correct = userAnswer === questionData.answer;
+    } else if (qType === 'RIDDLE' || qType === 'FILL') {
+      correct = questionData.answerKeywords.some(kw => userAnswer.includes(kw));
+    } else if (qType === 'MULTI') {
+      const sortedUser = [...userMultiAnswer].sort();
+      const sortedAns = [...questionData.answer].sort();
+      correct = JSON.stringify(sortedUser) === JSON.stringify(sortedAns);
+    } else if (qType === 'MATCH') {
+      const allMatched = Object.keys(questionData.pairs).every(key => {
+        const pair = matchPairs.find(p => p.left === key);
+        return pair && pair.right === questionData.pairs[key];
+      });
+      correct = allMatched && matchPairs.length === Object.keys(questionData.pairs).length;
+    } else if (qType === 'ORDER') {
+      // 驗證排序是否完全符合正確答案陣列
+      correct = JSON.stringify(userOrder) === JSON.stringify(questionData.answer);
+    } else if (isSubjective) {
+      correct = userAnswer.trim().length > 0 || qType === 'ERROR'; // 找錯題可以直接送出看解析
+    }
+
+    setIsCorrect(correct);
+    setShowResult(true);
+  };
+
+  // 渲染不同的輸入介面
+  const renderInputArea = () => {
+    switch (qType) {
+      case 'DIALOGUE':
+        return (
+          <div className="flex flex-col gap-4 md:gap-8 mt-2">
+            {/* 對話氣泡區 */}
+            <div className="flex items-start gap-3 md:gap-6 bg-blue-50 p-4 md:p-8 rounded-[2rem] rounded-tl-none border-4 border-blue-100 shadow-sm relative">
+              <div className="w-12 h-12 md:w-20 md:h-20 rounded-full bg-blue-200 flex items-center justify-center text-3xl md:text-5xl flex-shrink-0 shadow-md border-4 border-white">
+                🗣️
+              </div>
+              <div className="flex-1">
+                <p className="font-black text-blue-600 text-base md:text-2xl mb-1 md:mb-2">{questionData.dialogue.speaker} 說：</p>
+                <p className="text-xl md:text-4xl font-bold text-gray-800 leading-relaxed md:leading-loose">
+                  「{questionData.dialogue.text}」
+                </p>
+              </div>
+            </div>
+            
+            {/* 回覆選項區 */}
+            <div className="flex flex-col gap-3 md:gap-4 mt-2">
+              <p className="text-lg md:text-3xl text-gray-500 font-bold flex items-center gap-2">
+                <span>💭</span> 你會怎麼回答？
+              </p>
+              {questionData.options.map(opt => (
+                <label key={opt} className={`p-4 md:p-6 rounded-2xl border-4 cursor-pointer transition-all duration-200 flex items-center gap-3 md:gap-6 ${userAnswer === opt ? `${themeColor} text-white border-transparent shadow-xl transform scale-[1.02]` : 'bg-white border-gray-200 hover:bg-gray-50'}`}>
+                  <input 
+                    type="radio" 
+                    name="dialogue_mcq" 
+                    value={opt} 
+                    checked={userAnswer === opt}
+                    onChange={(e) => setUserAnswer(e.target.value)}
+                    className="hidden"
+                  />
+                  {/* 自訂的 Radio 圓圈樣式 */}
+                  <div className={`w-6 h-6 md:w-10 md:h-10 rounded-full border-4 flex-shrink-0 flex items-center justify-center transition-colors ${userAnswer === opt ? 'border-white' : 'border-gray-300'}`}>
+                     {userAnswer === opt && <div className="w-2.5 h-2.5 md:w-4 md:h-4 bg-white rounded-full"></div>}
+                  </div>
+                  <span className="font-bold text-lg md:text-3xl leading-relaxed">{opt}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+        );
+
+      case 'TF':
+      case 'MCQ':
+      case 'TABLE': // 將 TABLE 的輸入選項與選擇題共用 UI
+        return (
+          <div className="flex flex-col gap-4 md:gap-6">
+            {/* TABLE 題型專屬的表格呈現區 */}
+            {qType === 'TABLE' && (
+              <div className="overflow-x-auto bg-white rounded-2xl border-4 border-gray-200 shadow-sm mb-2 md:mb-4">
+                <table className="w-full text-left text-base md:text-2xl border-collapse min-w-[300px]">
+                  <thead className="bg-blue-50 border-b-4 border-blue-200 text-blue-900">
+                    <tr>
+                      {questionData.tableData.headers.map((h, i) => (
+                        <th key={i} className="p-3 md:p-5 font-black whitespace-nowrap">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {questionData.tableData.rows.map((row, idx) => (
+                      <tr key={idx} className="border-b-2 border-gray-100 last:border-0 hover:bg-gray-50">
+                        {row.map((cell, i) => (
+                          <td key={i} className="p-3 md:p-5 font-bold text-gray-700">{cell}</td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            
+            <div className="flex flex-col gap-3 md:gap-4">
+              {questionData.options.map(opt => (
+                <label key={opt} className={`p-4 md:p-6 rounded-2xl border-4 cursor-pointer transition-colors ${userAnswer === opt ? `${themeColor} text-white border-transparent shadow-lg` : 'bg-gray-50 border-gray-200 hover:bg-gray-100'}`}>
+                  <input 
+                    type="radio" 
+                    name="mcq" 
+                    value={opt} 
+                    checked={userAnswer === opt}
+                    onChange={(e) => setUserAnswer(e.target.value)}
+                    className="hidden"
+                  />
+                  <span className="font-bold text-xl md:text-3xl">{opt}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+        );
+
+      case 'MULTI':
+        return (
+          <div className="flex flex-col gap-3 md:gap-4">
+            {questionData.options.map(opt => {
+              const isChecked = userMultiAnswer.includes(opt);
+              return (
+                <label key={opt} className={`p-4 md:p-6 rounded-2xl border-4 cursor-pointer transition-colors flex items-center gap-3 md:gap-6 ${isChecked ? 'bg-blue-50 border-blue-400 shadow-lg' : 'bg-gray-50 border-gray-200 hover:bg-gray-100'}`}>
+                  <input 
+                    type="checkbox" 
+                    checked={isChecked}
+                    onChange={(e) => {
+                      if (e.target.checked) setUserMultiAnswer([...userMultiAnswer, opt]);
+                      else setUserMultiAnswer(userMultiAnswer.filter(item => item !== opt));
+                    }}
+                    className="w-6 h-6 md:w-10 md:h-10 rounded-md md:rounded-lg text-blue-600 focus:ring-blue-500 flex-shrink-0"
+                  />
+                  <span className="font-bold text-xl md:text-3xl">{opt}</span>
+                </label>
+              );
+            })}
+          </div>
+        );
+
+      case 'FILL':
+      case 'RIDDLE':
+        return (
+          <input 
+            type="text" 
+            value={userAnswer}
+            onChange={(e) => setUserAnswer(e.target.value)}
+            placeholder="請輸入您的答案..."
+            className="w-full p-4 md:p-8 text-xl md:text-4xl border-4 border-gray-300 rounded-2xl focus:border-blue-500 focus:ring-4 focus:ring-blue-200 outline-none font-bold"
+          />
+        );
+
+      case 'MATCH':
+        const MATCH_COLORS = ['bg-pink-200 border-pink-400', 'bg-cyan-200 border-cyan-400', 'bg-lime-200 border-lime-400', 'bg-amber-200 border-amber-400'];
+        return (
+          <div className="flex flex-col gap-4 md:gap-6">
+            <p className="text-base md:text-2xl font-bold text-gray-600 bg-gray-100 p-3 md:p-5 rounded-xl flex items-center gap-2 md:gap-3 border-2 border-gray-200">
+              <span className="text-xl md:text-3xl">👉</span> 請分別點擊左右兩側的項目，將它們配對連線：
+            </p>
+            <div className="flex flex-col md:flex-row justify-between gap-4 md:gap-8">
+              {/* 左邊欄位 (加入 1, 2, 3... 編號) */}
+              <div className="flex-1 flex flex-col gap-3 md:gap-4">
+                {Object.keys(questionData.pairs).map((key, index) => {
+                  const matchIdx = matchPairs.findIndex(p => p.left === key);
+                  const isMatched = matchIdx !== -1;
+                  const isActive = activeLeft === key;
+                  let colorClass = 'bg-gray-50 border-gray-300 hover:bg-gray-100';
+                  
+                  if (isMatched) colorClass = MATCH_COLORS[matchIdx % MATCH_COLORS.length];
+                  else if (isActive) colorClass = 'bg-blue-100 border-blue-500 shadow-lg transform scale-[1.02]';
+
+                  return (
+                    <button key={key} onClick={() => handleMatchClick('left', key)} className={`p-3 md:p-5 border-4 rounded-xl md:rounded-2xl text-left font-bold transition-all duration-200 text-lg md:text-3xl flex items-center gap-2 md:gap-4 ${colorClass}`}>
+                      {/* 固定數字編號 1, 2, 3... */}
+                      <span className="bg-white border-2 border-gray-300 text-gray-600 w-8 h-8 md:w-12 md:h-12 flex items-center justify-center rounded-lg md:rounded-xl text-lg md:text-2xl flex-shrink-0 shadow-sm font-black">
+                        {index + 1}
+                      </span>
+                      {isMatched && <span className="inline-block px-2 py-0.5 md:px-3 md:py-1 bg-white bg-opacity-80 rounded-md md:rounded-lg text-sm md:text-2xl text-gray-800 shadow-md flex-shrink-0">連線 {matchIdx + 1}</span>}
+                      <span className="flex-1 leading-snug">{key}</span>
+                    </button>
+                  );
+                })}
+              </div>
+              {/* 右邊欄位 (加入 A, B, C... 編號) */}
+              <div className="flex-1 flex flex-col gap-3 md:gap-4">
+                {shuffledMatchOptions.map((opt, index) => {
+                  const matchIdx = matchPairs.findIndex(p => p.right === opt);
+                  const isMatched = matchIdx !== -1;
+                  const isActive = activeRight === opt;
+                  let colorClass = 'bg-gray-50 border-gray-300 hover:bg-gray-100';
+                  
+                  if (isMatched) colorClass = MATCH_COLORS[matchIdx % MATCH_COLORS.length];
+                  else if (isActive) colorClass = 'bg-blue-100 border-blue-500 shadow-lg transform scale-[1.02]';
+
+                  return (
+                    <button key={opt} onClick={() => handleMatchClick('right', opt)} className={`p-3 md:p-5 border-4 rounded-xl md:rounded-2xl text-left font-bold transition-all duration-200 text-lg md:text-3xl flex items-center gap-2 md:gap-4 ${colorClass}`}>
+                      {/* 固定英文編號 A, B, C... */}
+                      <span className="bg-white border-2 border-gray-300 text-gray-600 w-8 h-8 md:w-12 md:h-12 flex items-center justify-center rounded-lg md:rounded-xl text-lg md:text-2xl flex-shrink-0 shadow-sm font-black">
+                        {String.fromCharCode(65 + index)}
+                      </span>
+                      {isMatched && <span className="inline-block px-2 py-0.5 md:px-3 md:py-1 bg-white bg-opacity-80 rounded-md md:rounded-lg text-sm md:text-2xl text-gray-800 shadow-md flex-shrink-0">連線 {matchIdx + 1}</span>}
+                      <span className="flex-1 leading-snug">{opt}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        );
+
+      case 'ORDER':
+        return (
+          <div className="flex flex-col gap-4 md:gap-6">
+            <p className="text-base md:text-2xl font-bold text-gray-600 bg-gray-100 p-3 md:p-5 rounded-xl flex items-center gap-2 md:gap-3 border-2 border-gray-200">
+              <span className="text-xl md:text-3xl">👆</span> 請依照正確順序，依序點擊下方的選項：
+            </p>
+            <div className="flex flex-col gap-3 md:gap-4">
+              {orderOptions.map((opt, index) => {
+                const orderIndex = userOrder.indexOf(opt);
+                const isSelected = orderIndex !== -1;
+                return (
+                  <button 
+                    key={opt}
+                    onClick={() => {
+                      if (isSelected) {
+                        setUserOrder(userOrder.filter(item => item !== opt));
+                      } else {
+                        setUserOrder([...userOrder, opt]);
+                      }
+                    }}
+                    className={`relative p-3 md:p-5 border-4 rounded-xl md:rounded-2xl text-left font-bold transition-all duration-200 text-lg md:text-3xl flex items-center gap-3 md:gap-5 ${isSelected ? 'bg-blue-100 border-blue-500 shadow-lg' : 'bg-gray-50 border-gray-300 hover:bg-gray-100'}`}
+                  >
+                    {/* 顯示選擇順序的數字徽章 (圓圈) */}
+                    <div className={`w-8 h-8 md:w-12 md:h-12 flex-shrink-0 flex items-center justify-center rounded-full border-4 font-black text-lg md:text-2xl transition-colors ${isSelected ? 'bg-blue-600 border-blue-600 text-white shadow-md' : 'bg-white border-gray-300 text-transparent'}`}>
+                      {isSelected ? orderIndex + 1 : ''}
+                    </div>
+
+                    {/* 固定編號 1, 2, 3... (讓學員口頭回答用) */}
+                    <span className="bg-gray-200 text-gray-600 w-8 h-8 md:w-12 md:h-12 flex items-center justify-center rounded-lg md:rounded-xl flex-shrink-0 text-lg md:text-2xl font-black shadow-inner">
+                      {index + 1}
+                    </span>
+
+                    <span className="flex-1 leading-snug">{opt}</span>
+                  </button>
+                );
+              })}
+            </div>
+            {/* 提示清除重來按鈕 */}
+            {userOrder.length > 0 && (
+               <button onClick={() => setUserOrder([])} className="self-end text-base md:text-xl text-gray-500 hover:text-red-500 font-bold underline">重新排序</button>
+            )}
+          </div>
+        );
+
+      case 'DESIGN':
+      case 'DISCUSS':
+      case 'ERROR':
+        return (
+          <div className="flex flex-col gap-2 md:gap-3">
+            {qType === 'ERROR' && <p className="text-base md:text-2xl text-gray-500 font-bold bg-gray-100 p-3 md:p-4 rounded-xl border-2 border-gray-200">※ 找錯題可直接在心裡想好答案後，點擊下方「確認送出」看解析。</p>}
+            <textarea 
+              value={userAnswer}
+              onChange={(e) => setUserAnswer(e.target.value)}
+              placeholder="請寫下您的想法..."
+              rows="4"
+              className="w-full p-4 md:p-8 text-xl md:text-3xl border-4 border-gray-300 rounded-2xl focus:border-blue-500 focus:ring-4 focus:ring-blue-200 outline-none resize-none font-medium"
+            ></textarea>
+          </div>
+        );
+
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-70 z-50 flex items-center justify-center p-2 md:p-8 backdrop-blur-sm">
+      <div className="bg-white rounded-2xl md:rounded-[2rem] w-full max-w-5xl overflow-hidden shadow-2xl animate-fade-in-up flex flex-col max-h-[95vh] md:max-h-[90vh]">
+        
+        {/* Modal Header */}
+        <div className={`${themeColor} p-4 md:p-6 text-white flex justify-between items-center shadow-md z-10`}>
+          <span className="bg-white bg-opacity-25 px-4 py-1.5 md:px-5 md:py-3 rounded-full text-base md:text-2xl font-black tracking-widest border border-white border-opacity-30">
+            {Q_TYPES[qType]}
+          </span>
+          <button onClick={onClose} className="text-white hover:text-gray-200 text-3xl md:text-5xl font-bold leading-none w-10 h-10 flex items-center justify-center">&times;</button>
+        </div>
+
+        {/* Modal Body */}
+        <div className="p-4 md:p-10 overflow-y-auto flex-1">
+          {!showResult ? (
+            // 答題區
+            <div className="space-y-6 md:space-y-8">
+              <h3 className="text-2xl md:text-4xl font-bold leading-relaxed md:leading-loose text-gray-800 bg-gray-50 p-4 md:p-8 rounded-2xl border-l-8 border-gray-800 shadow-sm">
+                {questionData.question}
+              </h3>
+              
+              <div className="mt-4 md:mt-8">
+                {renderInputArea()}
+              </div>
+
+              <button 
+                onClick={handleSubmit}
+                className="w-full mt-6 md:mt-10 bg-gray-800 hover:bg-black text-white text-2xl md:text-4xl font-bold py-4 md:py-8 rounded-2xl transition-all shadow-xl hover:shadow-2xl transform hover:-translate-y-1"
+              >
+                確認送出
+              </button>
+            </div>
+          ) : (
+            // 結果與衛教區
+            <div className="space-y-6 md:space-y-8 animate-fade-in">
+              {isSubjective ? (
+                <div className="bg-blue-100 border-l-[8px] md:border-l-[12px] border-blue-500 p-5 md:p-8 rounded-r-2xl shadow-sm">
+                  <h4 className="text-2xl md:text-4xl font-black text-blue-800 mb-2 md:mb-4">💡 {qType === 'ERROR' ? '來看看這段話錯在哪裡！' : '感謝您的分享！'}</h4>
+                  <p className="text-lg md:text-3xl font-bold text-blue-900 leading-relaxed">{qType === 'ERROR' ? '這段敘述中藏著一些常見的錯誤迷思：' : '您的思考方向很棒，讓我們來看看專業的衛教建議：'}</p>
+                </div>
+              ) : isCorrect ? (
+                <div className="bg-green-100 border-l-[8px] md:border-l-[12px] border-green-500 p-5 md:p-8 rounded-r-2xl shadow-sm flex items-center gap-3 md:gap-4">
+                  <span className="text-4xl md:text-6xl">✅</span>
+                  <h4 className="text-2xl md:text-5xl font-black text-green-800">答對了！非常棒！</h4>
+                </div>
+              ) : (
+                <div className="bg-red-100 border-l-[8px] md:border-l-[12px] border-red-500 p-5 md:p-8 rounded-r-2xl shadow-sm">
+                  <div className="flex items-center gap-3 md:gap-4 mb-3 md:mb-4">
+                    <span className="text-4xl md:text-6xl">❌</span>
+                    <h4 className="text-2xl md:text-5xl font-black text-red-800">答錯囉！再接再厲！</h4>
+                  </div>
+                  {qType !== 'MATCH' && <p className="text-red-900 font-bold text-lg md:text-3xl mt-2 md:mt-4 bg-white bg-opacity-50 p-3 md:p-4 rounded-xl inline-block">正確答案是：{
+                    Array.isArray(questionData.answer) ? questionData.answer.join('、') : questionData.answer
+                  }</p>}
+                </div>
+              )}
+
+              {/* 找錯題專屬：動態標記錯誤與修正 */}
+              {qType === 'ERROR' && (
+                <div className="bg-white border-4 border-gray-200 p-5 md:p-8 rounded-2xl md:rounded-[2rem] shadow-md my-6 md:my-8">
+                  <h4 className="text-xl md:text-3xl font-black text-gray-800 mb-4 md:mb-6 flex items-center gap-2 md:gap-3">
+                    <span className="text-3xl md:text-4xl">🕵️</span> 找錯解析與修正
+                  </h4>
+                  <div className="text-xl md:text-3xl leading-[2] md:leading-[3] break-words bg-gray-50 p-4 md:p-8 rounded-xl md:rounded-2xl border-2 border-gray-100">
+                    {questionData.correctionData.map((part, i) => (
+                      part.isError ? (
+                        <span key={i} className="inline-flex items-center flex-wrap mx-1 md:mx-2 my-1 md:my-2">
+                          <span className="line-through text-red-600 bg-red-100 px-2 md:px-3 py-1 rounded-lg font-bold border border-red-200">{part.text}</span>
+                          <span className="text-red-600 mx-2 md:mx-3 font-black text-2xl md:text-3xl">➔</span>
+                          <span className="text-green-800 font-black bg-green-200 px-3 md:px-4 py-1.5 md:py-2 rounded-lg shadow-sm border-2 border-green-400">{part.correction}</span>
+                        </span>
+                      ) : (
+                        <span key={i} className="text-gray-800 font-bold">{part.text}</span>
+                      )
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* 衛教知識卡片 */}
+              <div className="bg-amber-50 border-4 border-amber-300 rounded-2xl md:rounded-[2rem] p-6 md:p-10 shadow-lg mt-6 md:mt-8">
+                <h4 className="text-2xl md:text-4xl font-black text-amber-900 mb-4 md:mb-6 flex items-center gap-3 md:gap-4">
+                  <span className="text-4xl md:text-5xl">📚</span> 衛教百寶箱
+                </h4>
+                <p className="text-xl md:text-[1.75rem] text-gray-900 leading-relaxed md:leading-loose font-bold tracking-wide">
+                  {questionData.knowledge.replace('【衛教知識】', '')}
+                </p>
+              </div>
+
+              <button 
+                onClick={onClose}
+                className={`w-full mt-6 md:mt-10 ${themeColor} text-white text-2xl md:text-4xl font-black py-4 md:py-8 rounded-2xl transition-all shadow-xl hover:shadow-2xl transform hover:-translate-y-1`}
+              >
+                收下知識，關閉視窗
+              </button>
+            </div>
+          )}
+        </div>
+
+      </div>
+
+      {/* Tailwind 自定義動畫用 style (放在全域或這裡皆可，為單檔運作故寫在此) */}
+      <style dangerouslySetInnerHTML={{__html: `
+        @keyframes fadeInUp {
+          from { opacity: 0; transform: translateY(20px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes fadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        .animate-fade-in-up { animation: fadeInUp 0.4s ease-out forwards; }
+        .animate-fade-in { animation: fadeIn 0.4s ease-out forwards; }
+      `}} />
+    </div>
+  );
+}
